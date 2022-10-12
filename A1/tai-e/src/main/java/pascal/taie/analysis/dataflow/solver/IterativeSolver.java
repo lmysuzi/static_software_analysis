@@ -46,7 +46,6 @@ class IterativeSolver<Node, Fact> extends Solver<Node, Fact> {
 
             for(Node node : cfg){
                 if(!cfg.isExit(node)){
-                    //result.setOutFact(node, analysis.newInitialFact());
                     for(Node succ : cfg.getSuccsOf(node)){
                         analysis.meetInto(result.getInFact(succ),result.getOutFact(node));
                     }
