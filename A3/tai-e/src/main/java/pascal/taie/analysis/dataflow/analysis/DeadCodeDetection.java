@@ -33,21 +33,13 @@ import pascal.taie.analysis.graph.cfg.CFGBuilder;
 import pascal.taie.analysis.graph.cfg.Edge;
 import pascal.taie.config.AnalysisConfig;
 import pascal.taie.ir.IR;
-import pascal.taie.ir.exp.ArithmeticExp;
-import pascal.taie.ir.exp.ArrayAccess;
-import pascal.taie.ir.exp.CastExp;
-import pascal.taie.ir.exp.FieldAccess;
-import pascal.taie.ir.exp.NewExp;
-import pascal.taie.ir.exp.RValue;
-import pascal.taie.ir.exp.Var;
+import pascal.taie.ir.exp.*;
 import pascal.taie.ir.stmt.AssignStmt;
 import pascal.taie.ir.stmt.If;
 import pascal.taie.ir.stmt.Stmt;
 import pascal.taie.ir.stmt.SwitchStmt;
 
-import java.util.Comparator;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 public class DeadCodeDetection extends MethodAnalysis {
 
@@ -69,9 +61,106 @@ public class DeadCodeDetection extends MethodAnalysis {
                 ir.getResult(LiveVariableAnalysis.ID);
         // keep statements (dead code) sorted in the resulting set
         Set<Stmt> deadCode = new TreeSet<>(Comparator.comparing(Stmt::getIndex));
-        // TODO - finish me
         // Your task is to recognize dead code in ir and add it to deadCode
+        analyzeUnreachableCode(deadCode, constants, cfg);
+
+        analyzeDeadAssignment(deadCode, liveVars, cfg);
+        //exit不应出现于死代码中
+        deadCode.remove(cfg.getExit());
         return deadCode;
+    }
+
+    /**
+     * analyze the unreachable code
+     *
+     * @param deadCode  deadCode
+     * @param constants Constants
+     * @param cfg       cfg
+     */
+    private void analyzeUnreachableCode(Set<Stmt> deadCode, DataflowResult<Stmt, CPFact> constants, CFG<Stmt> cfg) {
+        Set<Stmt> traversedStmt = new HashSet<>();
+        Queue<Stmt> queue = new LinkedList<>();
+
+        queue.add(cfg.getEntry());
+        //traverse the CFG
+        while (!queue.isEmpty()) {
+            Stmt stmt = queue.poll();
+            if (traversedStmt.contains(stmt)) continue;
+            traversedStmt.add(stmt);
+
+            if (stmt instanceof If ifStmt) {
+                ConditionExp conditionExp = ifStmt.getCondition();
+                Value conditionResult = ConstantPropagation.evaluate(conditionExp, constants.getOutFact(stmt));
+                boolean isConstant = conditionResult.isConstant();
+                if (!isConstant) {
+                    queue.addAll(cfg.getSuccsOf(stmt));
+                    continue;
+                }
+
+                boolean isTrue = conditionResult.getConstant() == 1;
+                for (Edge<Stmt> edge : cfg.getOutEdgesOf(stmt)) {
+                    Stmt target = edge.getTarget();
+                    if (edge.getKind() == Edge.Kind.IF_TRUE) {
+                        if (isTrue) queue.add(target);
+                    } else if (edge.getKind() == Edge.Kind.IF_FALSE) {
+                        if (!isTrue) queue.add(target);
+                    } else throw new RuntimeException("wrong edge");
+                }
+            } else if (stmt instanceof SwitchStmt switchStmt) {
+                Var var = switchStmt.getVar();
+                //Value caseValue = constants.getOutFact(stmt).get(var);
+                Value caseValue = ConstantPropagation.evaluate(var, constants.getOutFact(stmt));
+
+                boolean isConstant = caseValue.isConstant();
+                if (!isConstant) {
+                    queue.addAll(cfg.getSuccsOf(stmt));
+                    continue;
+                }
+                if (!switchStmt.getCaseValues().contains(caseValue.getConstant())) {
+                    queue.add(switchStmt.getDefaultTarget());
+                    continue;
+                }
+
+                for (Edge<Stmt> edge : cfg.getOutEdgesOf(stmt)) {
+                    Stmt target = edge.getTarget();
+                    if (edge.getKind() == Edge.Kind.SWITCH_CASE) {
+                        if (caseValue.getConstant() == edge.getCaseValue()) {
+                            queue.add(target);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                for (Edge<Stmt> edge : cfg.getOutEdgesOf(stmt)) {
+                    queue.add(edge.getTarget());
+                }
+            }
+        }
+
+        //将未遍历过的点加入死代码中
+        for (Stmt stmt : cfg) {
+            if (!traversedStmt.contains(stmt))
+                deadCode.add(stmt);
+        }
+    }
+
+    /**
+     * analyze the dead assignment
+     *
+     * @param deadCode deadCode
+     * @param liveVars liveVars
+     * @param cfg      cfg
+     */
+    private void analyzeDeadAssignment(Set<Stmt> deadCode, DataflowResult<Stmt, SetFact<Var>> liveVars, CFG<Stmt> cfg) {
+        for (Stmt stmt : cfg) {
+            if (stmt instanceof AssignStmt<?, ?> assignStmt) {
+                LValue def = assignStmt.getLValue();
+                if (def instanceof Var var) {
+                    if (!liveVars.getOutFact(stmt).contains(var) && hasNoSideEffect(assignStmt.getRValue()))
+                        deadCode.add(stmt);
+                }
+            }
+        }
     }
 
     /**
