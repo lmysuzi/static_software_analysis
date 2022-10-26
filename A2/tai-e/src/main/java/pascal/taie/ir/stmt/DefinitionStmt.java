@@ -44,7 +44,6 @@ public abstract class DefinitionStmt<L extends LValue, R extends RValue>
     public abstract @Nullable L getLValue();
 
     /**
-     * @return the right-hand side expression.
      */
     public abstract R getRValue();
 }
