@@ -106,9 +106,9 @@ public class ConstantPropagation extends
             out.update(key, in.get(key));
         }
 
-        DefinitionStmt<LValue, RValue> definitionStmt;
+        DefinitionStmt<?, ?> definitionStmt;
         if (stmt instanceof DefinitionStmt<?, ?>)
-            definitionStmt = (DefinitionStmt<LValue, RValue>) stmt;
+            definitionStmt = (DefinitionStmt<?, ?>) stmt;
         else return !outOld.equals(out);
 
         LValue def = definitionStmt.getLValue();
@@ -150,61 +150,26 @@ public class ConstantPropagation extends
      * @return the result
      */
     private static int compute(BinaryExp.Op op, int v1, int v2) {
-        int result = 0;
-        switch (op.toString()) {
-            case "+":
-                result = v1 + v2;
-                break;
-            case "-":
-                result = v1 - v2;
-                break;
-            case "*":
-                result = v1 * v2;
-                break;
-            case "/":
-                result = v1 / v2;
-                break;
-            case "%":
-                result = v1 % v2;
-                break;
-            case "==":
-                result = (v1 == v2) ? 1 : 0;
-                break;
-            case "!=":
-                result = (v1 != v2) ? 1 : 0;
-                break;
-            case "<":
-                result = (v1 < v2) ? 1 : 0;
-                break;
-            case ">":
-                result = (v1 > v2) ? 1 : 0;
-                break;
-            case "<=":
-                result = (v1 <= v2) ? 1 : 0;
-                break;
-            case ">=":
-                result = (v1 >= v2) ? 1 : 0;
-                break;
-            case "<<":
-                result = v1 << v2;
-                break;
-            case ">>":
-                result = v1 >> v2;
-                break;
-            case ">>>":
-                result = v1 >>> v2;
-                break;
-            case "&":
-                result = v1 & v2;
-                break;
-            case "|":
-                result = v1 | v2;
-                break;
-            case "^":
-                result = v1 ^ v2;
-                break;
-        }
-        return result;
+        return switch (op.toString()) {
+            case "+" -> v1 + v2;
+            case "-" -> v1 - v2;
+            case "*" -> v1 * v2;
+            case "/" -> v1 / v2;
+            case "%" -> v1 % v2;
+            case "==" -> (v1 == v2) ? 1 : 0;
+            case "!=" -> (v1 != v2) ? 1 : 0;
+            case "<" -> (v1 < v2) ? 1 : 0;
+            case ">" -> (v1 > v2) ? 1 : 0;
+            case "<=" -> (v1 <= v2) ? 1 : 0;
+            case ">=" -> (v1 >= v2) ? 1 : 0;
+            case "<<" -> v1 << v2;
+            case ">>" -> v1 >> v2;
+            case ">>>" -> v1 >>> v2;
+            case "&" -> v1 & v2;
+            case "|" -> v1 | v2;
+            case "^" -> v1 ^ v2;
+            default -> 0;
+        };
     }
 
     /**
@@ -215,7 +180,7 @@ public class ConstantPropagation extends
      * @return the resulting {@link Value}
      */
     public static Value evaluate(Exp exp, CPFact in) {
-        Value ans = null;
+        Value ans;
         if (exp instanceof Var) {
             ans = in.get((Var) exp);
         } else if (exp instanceof IntLiteral) {
