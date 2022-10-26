@@ -2,14 +2,7 @@ class Assign {
 
 
     void whileConstant(int a, int b) {
-        if (a > b) {
-            a = 1;
-            b = 9;
-        } else {
-            a = 9;
-            b = 1;
-        }
-        int c = a + b;
+        a = b / 0;
     }
 }
 

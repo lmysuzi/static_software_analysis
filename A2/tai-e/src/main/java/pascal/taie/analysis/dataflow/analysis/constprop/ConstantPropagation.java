@@ -111,14 +111,12 @@ public class ConstantPropagation extends
             definitionStmt = (DefinitionStmt<LValue, RValue>) stmt;
         else return !outOld.equals(out);
 
-
         LValue def = definitionStmt.getLValue();
         Exp exp = definitionStmt.getRValue();
         Value value = evaluate(exp, in);
         if (def != null)
             if (def instanceof Var && canHoldInt((Var) def))
                 out.update((Var) def, value);
-
 
         if (!outOld.equals(out)) flag = true;
 
@@ -235,7 +233,12 @@ public class ConstantPropagation extends
                 else ans = Value.makeConstant(compute(((BinaryExp) exp).getOperator()
                         , value1.getConstant(), value2.getConstant()));
             } else if (value1.isNAC() || value2.isNAC()) {
-                ans = Value.getNAC();
+                //此处可能发生除0的情况，应单独考虑
+                if(value2.isConstant()&&value2.getConstant()==0&&
+                        (Objects.equals(((BinaryExp) exp).getOperator().toString(), "/") ||
+                                Objects.equals(((BinaryExp) exp).getOperator().toString(), "%")))
+                    ans = Value.getUndef();
+                else ans=Value.getNAC();
             } else {
                 ans = Value.getUndef();
             }
